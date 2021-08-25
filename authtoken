@@ -1,0 +1,128 @@
+
+/*
+This is a sample function. Uncomment to execute or make changes to this function.
+salesorderID = salesorder.get("salesorder_id");
+salesorderdate = salesorder.get("date").toDate();
+organizationID = organization.get("organization_id");
+*/
+//map the information from a sales order into variables
+salesorderID = salesorder.get("salesorder_id");
+salesorderdate = salesorder.get("date").toDate();
+organizationID = organization.get("organization_id");
+authtoken = "fd162ba3ea5c13b516a177920a79f2c3";
+sal = invokeurl
+[
+	url :"https://inventory.zoho.com/api/v1/salesorders/" + salesorderID + "?authtoken=" + authtoken + "&organization_id=" + organizationID
+	type :GET
+];
+temp = sal.get("salesorder");
+info temp;
+new = temp.get("sales_channel");
+info new;
+if(new.contains("amazon"))
+{
+	new1 = "amz";
+}
+else if(new.contains("ebay"))
+{
+	new1 = "eb";
+}
+else
+{
+	new1 = new;
+}
+ref = temp.get("reference_number");
+info ref;
+invnumber = new + "-" + ref;
+info invnumber;
+if(!new.equalsIgnoreCase("direct_sales"))
+{
+	bson = Map();
+	customerID = salesorder.get("customer_id").toString();
+	salesoderdate = salesorder.get("date").toDate();
+	//invoice_number = salesorder.get("salesorder_number").replaceFirst("SO","INV");
+	//invnumber = new + "-" + salesorder.get("reference_number");
+	info invnumber;
+	bson.put("invoice_number",invnumber);
+	bson.put("customer_id",customerID);
+	bson.put("date",salesorder.get("date"));
+	bson.put("reference_number",salesorder.get("reference_number"));
+	bson.put("discount",salesorder.get("discount"));
+	lineItems = salesorder.get("line_items").toList();
+	newLineItems = List();
+	for each  lineItem in lineItems
+	{
+		lineItemMap = Map();
+		solineitemID = lineItem.get("line_item_id");
+		lineItemMap.put("salesorder_item_id",solineitemID);
+		id = lineItem.get("item_id");
+		lineItemMap.put("item_id",id);
+		des = lineItem.get("description");
+		lineItemMap.put("description",des);
+		//wh = lineItem.get("warehouse_id");
+		//lineItemMap.put("warehouse_id",wh);
+		quantity = lineItem.get("quantity");
+		lineItemMap.put("quantity",quantity);
+		r = lineItem.get("rate");
+		lineItemMap.put("rate",r);
+		d = lineItem.get("discount");
+		lineItemMap.put("discount",d);
+		tidd = lineItem.get("tax_id");
+		lineItemMap.put("tax_id",tidd);
+		tex = lineItem.get("tax_exemption_code");
+		lineItemMap.put("tax_exemption_code",tex);
+		newLineItems.add(lineItemMap);
+	}
+	bson.put("line_items",newLineItems);
+	if(temp.get("is_taxable").equalsIgnoreCase("true"))
+	{
+		bson.put("tax_id",temp.get("tax_id"));
+	}
+	else
+	{
+		bson.put("tax_exemption_id",temp.get("tax_exemption_id"));
+		bson.put("tax_authority_id",temp.get("tax_authority_id"));
+	}
+	info bson;
+	response = zoho.inventory.createRecord("Invoices",organizationID,bson);
+	info response.toMap().get("message");
+	inv = response.get("invoice");
+	info inv.get("invoice_id");
+	//marking as sent//
+	invoiceID = inv.get("invoice_id");
+	invoicedate = inv.get("date").toDate();
+	respond = invokeurl
+	[
+		url :"https://inventory.zoho.com/api/v1/invoices/" + invoiceID + "/status/sent?authtoken=" + authtoken + "&organization_id=" + organizationID
+		type :POST
+	];
+	info respond.toMap().get("message");
+	// try to apply a payment against invoice //
+	paymap = Map();
+	totalpay = salesorder.get("total").toDecimal();
+	paymap.put("customer_id",customerID);
+	paymap.put("payment_mode","bankremittance");
+	paymap.put("amount",totalpay);
+	paymap.put("date",salesorder.get("date"));
+	paymap.put("reference_number",salesorder.get("reference_number"));
+	payinvlist = List();
+	payinvmap = Map();
+	payinvmap.put("invoice_id",invoiceID);
+	payinvmap.put("amount_applied",totalpay);
+	payinvlist.add(payinvmap);
+	paymap.put("invoices",payinvlist);
+	jsonString = Map();
+	jsonString.put("JSONString",paymap);
+	info jsonString;
+	payinv = invokeurl
+	[
+		url :"https://inventory.zoho.com/api/v1/customerpayments?authtoken=" + authtoken + "&organization_id=" + organizationID
+		type :POST
+		parameters:jsonString
+	];
+	info payinv.toMap().get("message");
+}
+else
+{
+	info "Order is not from a Marketplace";
+}
